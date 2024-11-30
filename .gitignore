@@ -1,9 +1,5 @@
-__pycache__/
-
-models/
-train_data/
-!.gitkeep
 env/
-reference/*
+reference/
+train_data/
+test_data/
 
-*.zip
