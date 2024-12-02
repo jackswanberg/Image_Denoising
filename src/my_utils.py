@@ -4,9 +4,13 @@ import torch
 from skimage.metrics import peak_signal_noise_ratio, structural_similarity
 
 def PSNR(img, noisy_img):
+    img = img.numpy()
+    noisy_img = noisy_img.numpy()
     return peak_signal_noise_ratio(img,noisy_img)
 
 def SSIM(img,noisy_img):
+    img = img.numpy()
+    noisy_img = noisy_img.numpy()
     return structural_similarity(img,noisy_img)
 
 def normalize_image(img):
