@@ -4,7 +4,10 @@ import torch.nn.functional as F
 import torch.optim as optim
 from torch.autograd import Variable
 
-import utils
+import my_utils
+
+device = torch.device('cuda') if torch.cuda.is_available() else torch.device('cpu')
+device = torch.device('mps') if torch.mps.is_available() else device
 
 class FFDNet(nn.Module):
 
@@ -46,11 +49,13 @@ class FFDNet(nn.Module):
 
     def forward(self, x, noise_sigma):
         noise_map = noise_sigma.view(x.shape[0], 1, 1, 1).repeat(1, x.shape[1], x.shape[2] // 2, x.shape[3] // 2)
-
-        x_up = utils.downsample(x.data) # 4 * C * H/2 * W/2
+        noise_map = noise_map.to(device)
+        x_up = my_utils.downsample(x.data) # 4 * C * H/2 * W/2
+        x_up = x_up.to(device)
         x_cat = torch.cat((noise_map.data, x_up), 1) # 4 * (C + 1) * H/2 * W/2
         x_cat = Variable(x_cat)
-
+        x_cat = x_cat.to(device)
+        # x_cat.to('mps')                           #Just set to mps for on mac
         h_dncnn = self.intermediate_dncnn(x_cat)
-        y_pred = utils.upsample(h_dncnn)
+        y_pred = my_utils.upsample(h_dncnn)
         return y_pred
