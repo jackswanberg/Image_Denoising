@@ -1,6 +1,6 @@
 import numpy as np
 import torch
-from my_utils import normalize_image
+from my_utils import normalize_image, restore_image
 
 
 class Noise_Generator():
@@ -24,6 +24,7 @@ class Noise_Generator():
         if self.noise_type == 'poisson':
             #TODO
             pass
+        noisy_img = restore_image(noisy_img,shift,scale)
         noisy_img[noisy_img<0]=0
         noisy_img[noisy_img>255]=255
         noisy_img = noisy_img.to(torch.uint8)
