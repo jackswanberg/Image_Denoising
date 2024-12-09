@@ -4,13 +4,20 @@ import torch
 from skimage.metrics import peak_signal_noise_ratio, structural_similarity
 
 def PSNR(img, noisy_img):
-    img = img.numpy()
-    noisy_img = noisy_img.numpy()
+    print(type(img))
+    print(img.shape)
+    print(noisy_img.shape)
+    if not isinstance(img,np.ndarray):
+        img = img.cpu().detach().numpy()
+    if not isinstance(noisy_img,np.ndarray):
+        noisy_img = noisy_img.cpu().detach().numpy()
     return peak_signal_noise_ratio(img,noisy_img)
 
 def SSIM(img,noisy_img):
-    img = img.numpy()
-    noisy_img = noisy_img.numpy()
+    if not isinstance(img,np.ndarray):
+        img = img.cpu().detach().numpy()
+    if not isinstance(noisy_img,np.ndarray):
+        noisy_img = noisy_img.cpu().detach().numpy()
     return structural_similarity(img,noisy_img)
 
 def normalize_image(img):
@@ -40,7 +47,6 @@ def downsample(x):
     Wout = W // 2
     Hout = H // 2
 
-    print(x.type())
     if 'cuda' in x.type():
         down_features = torch.cuda.FloatTensor(N, Cout, Wout, Hout).fill_(0)
     else:
@@ -49,7 +55,6 @@ def downsample(x):
     for idx in range(4):
         down_features[:, idx:Cout:4, :, :] = x[:, :, idxL[idx][0]::2, idxL[idx][1]::2]
 
-    print(down_features.type())
     return down_features
 
 def upsample(x):

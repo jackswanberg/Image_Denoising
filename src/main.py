@@ -18,7 +18,7 @@ from PIL import Image
 
 from Noise_Generator import Noise_Generator
 from my_utils import PSNR, SSIM, normalize_image, restore_image
-from model import FFDNet
+from model import FFDNet, ResidualFFDNet, AttentionFFDNet
 
 def get_dataloaders(dataset,splits):
     train_dataloader, val_dataloader, test_dataloader = None, None, None
@@ -37,19 +37,23 @@ def get_dataloaders(dataset,splits):
 
 
 if __name__=="__main__":
+    torch.manual_seed(16)       #Set seed for reproducable training and comparisons
+
     noise_type = 'gaussian'
-    noise_level = 10
+    noise_level = 30
     noise_generator = Noise_Generator(noise_type,noise_level)
     dataset = "GATE-engine/mini_imagenet"
+    load_model = False
+    model_save = "model_saves/2_107500"
     # dataset = "ioxil/imagenetsubset"
     splits = ['train']
-    batchsize = 4
+    batchsize = 1
     lr = 10e-4
     num_epochs = 5
 
     ds = get_dataloaders(dataset,False)
     ds.set_format('torch',columns=['image','label'])
-    train_dataloader = DataLoader(ds['train'])
+    train_dataloader = DataLoader(ds['train'],batchsize)
     # train_dataloader, val_dataloader, test_dataloader = get_dataloaders(dataset, splits)
     # if train is not None:
     #     train_dataloader = DataLoader(train,4)
@@ -63,8 +67,10 @@ if __name__=="__main__":
 
     print(device)
 
-    model = FFDNet(False)
+    model = ResidualFFDNet()
     model.to(device)
+    if load_model:
+        model.load_state_dict(torch.load(model_save,weights_only=True))
     optim = torch.optim.AdamW(model.parameters(),lr=lr)
     criterion = nn.MSELoss()
 
@@ -79,6 +85,7 @@ if __name__=="__main__":
             image = output['image']
             # print(torchvision.io.read_image(image))
             
+            
             noisy_image = noise_generator.add_noise(image)
             image = image.to(device)
             noise_image = noisy_image.to(device)
@@ -91,11 +98,46 @@ if __name__=="__main__":
             denoised = denoised.to(device)
 
             #Make sure they are both the same type
-            loss = criterion(denoised.uint8(),image.uint8())
+            denoised = denoised.to(torch.float32)
+            image = image.to(torch.float32)
+            loss = criterion(denoised,image)
             loss.backward()
 
             optim.step()
-            break   
+   
+            training_loss+=loss.item()
+
+            # print(image.shape)
+            # print(noisy_image.shape)
+            # print(denoised.shape)
+
+            if count%2500==0:
+                noisy_image = torch.permute(noisy_image[0]/255.0,(1,2,0)).cpu().detach().numpy()
+                denoised_image = torch.permute(denoised[0]/255.0,(1,2,0)).cpu().detach().numpy()
+                image = torch.permute(image[0]/255.0,(1,2,0)).cpu().detach().numpy()
+                fig = plt.figure()
+                # fig.axes.get_yaxis().set_visible(False)
+                plt.subplot(131)
+                plt.imshow(noisy_image)
+                plt.text(112,-25,"Noisy Image",horizontalalignment='center')
+                plt.text(112,-5,f"PSNR: {PSNR(image,noisy_image):0.2f}",horizontalalignment='center')
+                plt.axis('off')
+                plt.subplot(132)
+                plt.imshow(denoised_image)
+                plt.text(112,-25,"Denoised Image",horizontalalignment='center')
+                plt.text(112,-5,f"PSNR: {PSNR(image,denoised_image):0.2f}",horizontalalignment='center')
+                plt.axis('off')
+                plt.subplot(133)
+                plt.imshow(image)
+                plt.title("True Image")
+                filename = f"results/{epoch}_{count}"
+                plt.axis('off')
+                plt.savefig(filename)
+                plt.close()
+                if count%5000:
+                    model_path=f"model_saves/{epoch}_{count}"
+                    torch.save(model.state_dict(),model_path)
+        print(f"Training loss in epoch {epoch}: {training_loss/(len(train_dataloader)*batchsize)}")
 
     # print(val['image'])
     
