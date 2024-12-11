@@ -60,8 +60,8 @@ class resNetBlock(nn.Module):
         # self.norm = nn.BatchNorm2d(num_features=in_channels)
 
         self.resBlock = nn.Sequential(
-            nn.BatchNorm2d(in_channels),
-            nn.ReLU(),
+            # nn.BatchNorm2d(in_channels),
+            # nn.ReLU(),
             nn.Conv2d(
                 in_channels,
                 out_channels,
@@ -72,8 +72,8 @@ class resNetBlock(nn.Module):
             ),
             nn.BatchNorm2d(out_channels),
             nn.ReLU(),
-            nn.Dropout(dropout),
-            nn.Conv2d(out_channels, out_channels, kernel_size=1, stride=1, bias=False)
+            # nn.Dropout(dropout),
+            # nn.Conv2d(out_channels, out_channels, kernel_size=1, stride=1, bias=False)
         )
 
     def forward(self, x):
