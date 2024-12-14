@@ -143,7 +143,7 @@ class self_attention(nn.Module):
         q = self.w_q(x)
         k = self.w_k(x)
         v = self.w_v(x)
-        inter = torch.matmul(k.transpose(0,1),q)
+        inter = torch.matmul(k.transpose(1,2),q)
         value_weights = self.softmax(inter*scaling_factor)
         return self.w_o(torch.matmul(v,value_weights))
 
@@ -156,6 +156,7 @@ class AttentionFFDNet(nn.Module):
         self.num_feature_maps = 96
         self.output_features = 12
         self.attention = self_attention(112)
+        # self.attention = nn.MultiheadAttention(12544,1)
             
         self.kernel_size = 3
         self.padding = 1
@@ -197,9 +198,11 @@ class AttentionFFDNet(nn.Module):
         # print(f"Before attention min/max: {h_dncnn.min()},{h_dncnn.max()}")
         # print(torch.min(torch.min(h_dncnn,3).values,2))
         # print(torch.max(torch.max(h_dncnn,3).values,2))
-        # h_dncnn = h_dncnn.squeeze().flatten(1)
-        # print(h_dncnn.shape)
-        h_dncnn = self.attention(h_dncnn).reshape((-1,12,112,112)) 
+
+        h_dncnn = h_dncnn.flatten(2)
+        # h_dncnn = h_dncnn.reshape((-1,12,112,112))
+        h_dncnn = self.attention(h_dncnn).reshape((-1,12,112,112))
+        # h_dncnn = self.attention(h_dncnn,h_dncnn,h_dncnn)[0].reshape((-1,12,112,112))
         # print(f"After attention min/max: {h_dncnn.min()},{h_dncnn.max()}") 
         # print(torch.min(torch.min(h_dncnn,3).values,2))
         # print(torch.max(torch.max(h_dncnn,3).values,2))

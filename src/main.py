@@ -39,17 +39,17 @@ def get_dataloaders(dataset,splits):
 if __name__=="__main__":
     torch.manual_seed(16)       #Set seed for reproducable training and comparisons
 
-    noise_type = 'gaussian'
+    noise_type = 'gaussian' #Options are gaussian, or poisson
     noise_level = [0,50]
-    noise_distribution = "80-20" # Distribution from One Size Fits All: https://arxiv.org/pdf/2005.09627
+    noise_distribution = "20-80" # Distribution from One Size Fits All: https://arxiv.org/pdf/2005.09627
     noise_generator = Noise_Generator(noise_type,noise_level,noise_distribution=noise_distribution)
     dataset = "GATE-engine/mini_imagenet"
     load_model = False
-    model_type = 'regular'           #options are regular, residual, attention
+    model_type = 'attention'           #options are regular, residual, attention
     model_save = "model_saves/2_107500"
     # dataset = "ioxil/imagenetsubset"
     splits = ['train','validation','test']
-    batchsize = 32
+    batchsize = 1
     lr = 10e-4
     num_epochs = 5
 
@@ -132,7 +132,7 @@ if __name__=="__main__":
             # print(noisy_image.shape)
             # print(denoised.shape)
 
-            if count%2000==0:
+            if count%5000==0:
                 noisy_image = torch.permute(noisy_image[0]/255.0,(1,2,0)).cpu().detach().numpy()
                 denoised_image = torch.permute(denoised[0]/255.0,(1,2,0)).cpu().detach().numpy()
                 image = torch.permute(image[0]/255.0,(1,2,0)).cpu().detach().numpy()
@@ -155,7 +155,7 @@ if __name__=="__main__":
                 plt.axis('off')
                 plt.savefig(filename)
                 plt.close()
-                if count%4000:
+                if count%5000:
                     model_path=f"model_saves/{epoch}_{count}"
                     torch.save(model.state_dict(),model_path)
         with torch.no_grad():
@@ -190,10 +190,12 @@ if __name__=="__main__":
                 val_loss.append(loss.item())
         print(f"Training loss in epoch {epoch}: {training_loss/(len(train_dataloader))}")
         print(f"Validation loss in epoch {epoch}: {validation_loss/len(val_dataloader)}")
+        model_path=f"model_saves/{epoch}_{count}"
+        torch.save(model.state_dict(),model_path)
 
     plt.figure()
-    plt.imshow(train_loss)
-    plt.imshow(val_loss)
+    plt.plot(train_loss)
+    plt.plot(val_loss)
     plt.show()
     # print(val['image'])
     
