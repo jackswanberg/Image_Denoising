@@ -40,20 +40,24 @@ if __name__=="__main__":
     torch.manual_seed(16)       #Set seed for reproducable training and comparisons
 
     noise_type = 'gaussian'
-    noise_level = 30
-    noise_generator = Noise_Generator(noise_type,noise_level)
+    noise_level = [0,50]
+    noise_distribution = "80-20" # Distribution from One Size Fits All: https://arxiv.org/pdf/2005.09627
+    noise_generator = Noise_Generator(noise_type,noise_level,noise_distribution=noise_distribution)
     dataset = "GATE-engine/mini_imagenet"
     load_model = False
+    model_type = 'regular'           #options are regular, residual, attention
     model_save = "model_saves/2_107500"
     # dataset = "ioxil/imagenetsubset"
-    splits = ['train']
-    batchsize = 1
+    splits = ['train','validation','test']
+    batchsize = 32
     lr = 10e-4
     num_epochs = 5
 
     ds = get_dataloaders(dataset,False)
     ds.set_format('torch',columns=['image','label'])
-    train_dataloader = DataLoader(ds['train'],batchsize)
+    train_dataloader = DataLoader(ds['train'],batchsize,shuffle=True)
+    val_dataloader = DataLoader(ds['validation'],batchsize,shuffle=True)
+    test_dataloader = DataLoader(ds['test'],batchsize,shuffle=False)
     # train_dataloader, val_dataloader, test_dataloader = get_dataloaders(dataset, splits)
     # if train is not None:
     #     train_dataloader = DataLoader(train,4)
@@ -67,7 +71,17 @@ if __name__=="__main__":
 
     print(device)
 
-    model = ResidualFFDNet()
+    if model_type=='residual':
+        model = ResidualFFDNet()
+    elif model_type=='attention':
+        model = AttentionFFDNet()
+    elif model_type=='regular':
+        model = FFDNet()
+    else:
+        print("Unknown model type input, defaulting to regular FFDNet")
+        model = FFDNet()
+
+    print(f"Model type selected was: {model}")
     model.to(device)
     if load_model:
         model.load_state_dict(torch.load(model_save,weights_only=True))
@@ -75,24 +89,30 @@ if __name__=="__main__":
     criterion = nn.MSELoss()
 
     count=0
+    train_loss = []
+    val_loss = []
+    print(len(train_dataloader))
 
     for epoch in range(num_epochs):
+        training_loss = 0
         for output in iter(train_dataloader):
-            training_loss = 0
+            
             count+=1
-            print(f"iter: {count}")
+            if count%100==0:
+                print(f"iter: {count}")
             optim.zero_grad()
             image = output['image']
             # print(torchvision.io.read_image(image))
             
             
-            noisy_image = noise_generator.add_noise(image)
+            noisy_image,noise_level = noise_generator.add_noise(image)
             image = image.to(device)
             noise_image = noisy_image.to(device)
 
             noise_sigma = torch.FloatTensor(np.array([noise_level for idx in range(image.shape[0])]))
             noise_sigma = Variable(noise_sigma)
             noise_sigma = noise_sigma.to(device)
+
 
             denoised = model.forward(noisy_image,noise_sigma)
             denoised = denoised.to(device)
@@ -106,16 +126,17 @@ if __name__=="__main__":
             optim.step()
    
             training_loss+=loss.item()
+            train_loss.append(loss.item())
 
             # print(image.shape)
             # print(noisy_image.shape)
             # print(denoised.shape)
 
-            if count%2500==0:
+            if count%2000==0:
                 noisy_image = torch.permute(noisy_image[0]/255.0,(1,2,0)).cpu().detach().numpy()
                 denoised_image = torch.permute(denoised[0]/255.0,(1,2,0)).cpu().detach().numpy()
                 image = torch.permute(image[0]/255.0,(1,2,0)).cpu().detach().numpy()
-                fig = plt.figure()
+                plt.figure()
                 # fig.axes.get_yaxis().set_visible(False)
                 plt.subplot(131)
                 plt.imshow(noisy_image)
@@ -134,11 +155,46 @@ if __name__=="__main__":
                 plt.axis('off')
                 plt.savefig(filename)
                 plt.close()
-                if count%5000:
+                if count%4000:
                     model_path=f"model_saves/{epoch}_{count}"
                     torch.save(model.state_dict(),model_path)
-        print(f"Training loss in epoch {epoch}: {training_loss/(len(train_dataloader)*batchsize)}")
+        with torch.no_grad():
+            validation_loss = 0
+            for output in iter(val_dataloader):
+                
+                count+=1
+                if count%100==0:
+                    print(f"iter: {count}")
 
+                image = output['image']
+                # print(torchvision.io.read_image(image))
+                
+                
+                noisy_image,noise_level = noise_generator.add_noise(image)
+                image = image.to(device)
+                noise_image = noisy_image.to(device)
+
+                noise_sigma = torch.FloatTensor(np.array([noise_level for idx in range(image.shape[0])]))
+                noise_sigma = Variable(noise_sigma)
+                noise_sigma = noise_sigma.to(device)
+
+                denoised = model.forward(noisy_image,noise_sigma)
+                denoised = denoised.to(device)
+
+                #Make sure they are both the same type
+                denoised = denoised.to(torch.float32)
+                image = image.to(torch.float32)
+                loss = criterion(denoised,image)
+    
+                validation_loss+=loss.item()
+                val_loss.append(loss.item())
+        print(f"Training loss in epoch {epoch}: {training_loss/(len(train_dataloader))}")
+        print(f"Validation loss in epoch {epoch}: {validation_loss/len(val_dataloader)}")
+
+    plt.figure()
+    plt.imshow(train_loss)
+    plt.imshow(val_loss)
+    plt.show()
     # print(val['image'])
     
     # test_img = cv2.imread("FFDNet_pytorch/test_data/color.png")
