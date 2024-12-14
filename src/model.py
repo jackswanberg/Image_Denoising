@@ -2,7 +2,9 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 import torch.optim as optim
+import numpy as np
 from torch.autograd import Variable
+from einops import rearrange
 
 import my_utils
 
@@ -123,7 +125,28 @@ class ResidualFFDNet(nn.Module):
         h_dncnn = self.intermediate_dncnn(x_cat)
         y_pred = my_utils.upsample(h_dncnn)
         return y_pred
-    
+
+class self_attention(nn.Module):
+    def __init__(self, d_model):
+        super().__init__()
+        self.w_q = nn.Conv1d(in_channels=12,out_channels=36,kernel_size=1)
+        self.w_k = nn.Conv1d(in_channels=12,out_channels=36,kernel_size=1)
+        self.w_v = nn.Conv1d(in_channels=12,out_channels=36,kernel_size=1)
+        self.w_o = nn.Conv1d(in_channels=36,out_channels=12,kernel_size=1)
+        # self.scaling_factor = 1/torch.sqrt(d_model)
+
+        #What model parameters are needed for attention block?
+        self.softmax = nn.Softmax(-1)
+    def forward(self,x):
+        dim = torch.tensor(x.shape[1])
+        scaling_factor = 1/torch.sqrt(dim)
+        q = self.w_q(x)
+        k = self.w_k(x)
+        v = self.w_v(x)
+        inter = torch.matmul(k.transpose(0,1),q)
+        value_weights = self.softmax(inter*scaling_factor)
+        return self.w_o(torch.matmul(v,value_weights))
+
 class AttentionFFDNet(nn.Module):
 
     def __init__(self):
@@ -132,6 +155,7 @@ class AttentionFFDNet(nn.Module):
         self.downsampled_channels = 15
         self.num_feature_maps = 96
         self.output_features = 12
+        self.attention = self_attention(112)
             
         self.kernel_size = 3
         self.padding = 1
@@ -159,11 +183,29 @@ class AttentionFFDNet(nn.Module):
         noise_map = noise_sigma.view(x.shape[0], 1, 1, 1).repeat(1, x.shape[1], x.shape[2] // 2, x.shape[3] // 2)
         noise_map = noise_map.to(device)
         x_up = my_utils.downsample(x.data) # 4 * C * H/2 * W/2
+        x_residual = x_up
+        x_residual = x_residual.to(device)
         x_up = x_up.to(device)
+        # x_up = x_up.squeeze().flatten(1)
+        # x_up = self.attention(x_up).reshape((-1,12,112,112))
         x_cat = torch.cat((noise_map.data, x_up), 1) # 4 * (C + 1) * H/2 * W/2
         x_cat = Variable(x_cat)
         x_cat = x_cat.to(device)
         # x_cat.to('mps')                           #Just set to mps for on mac
         h_dncnn = self.intermediate_dncnn(x_cat)
-        y_pred = my_utils.upsample(h_dncnn)
+        # print(h_dncnn.shape)
+        # print(f"Before attention min/max: {h_dncnn.min()},{h_dncnn.max()}")
+        # print(torch.min(torch.min(h_dncnn,3).values,2))
+        # print(torch.max(torch.max(h_dncnn,3).values,2))
+        # h_dncnn = h_dncnn.squeeze().flatten(1)
+        # print(h_dncnn.shape)
+        h_dncnn = self.attention(h_dncnn).reshape((-1,12,112,112)) 
+        # print(f"After attention min/max: {h_dncnn.min()},{h_dncnn.max()}") 
+        # print(torch.min(torch.min(h_dncnn,3).values,2))
+        # print(torch.max(torch.max(h_dncnn,3).values,2))
+        # h_dncnn =               #Need different attention layer for this?
+        y_pred = my_utils.upsample(h_dncnn+x_residual)
+        # print(y_pred.shape)
+        # print(torch.min(torch.min(y_pred,3).values,2))
+        # print(torch.max(torch.max(y_pred,3).values,2))
         return y_pred
