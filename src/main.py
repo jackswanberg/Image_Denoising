@@ -6,6 +6,7 @@ import cv2
 import os
 import time
 import matplotlib.pyplot as plt
+import lpips
 
 import torch
 import torch.nn as nn
@@ -18,7 +19,7 @@ from PIL import Image
 
 from Noise_Generator import Noise_Generator
 from my_utils import PSNR, SSIM, normalize_image, restore_image
-from model import FFDNet, ResidualFFDNet, AttentionFFDNet
+from model import FFDNet, ResidualFFDNet, AttentionFFDNet, Res2_FFDNet, Res3_FFDNet, ResidualLargeFFDNet
 
 def get_dataloaders(dataset,splits):
     train_dataloader, val_dataloader, test_dataloader = None, None, None
@@ -41,19 +42,20 @@ if __name__=="__main__":
 
     noise_type = 'gaussian' #Options are gaussian, or poisson
     noise_level = [0,50]
-    noise_distribution = "20-80" # Distribution from One Size Fits All: https://arxiv.org/pdf/2005.09627
+    noise_distribution = "80-20" # Distribution from One Size Fits All: https://arxiv.org/pdf/2005.09627
     noise_generator = Noise_Generator(noise_type,noise_level,noise_distribution=noise_distribution)
     dataset = "GATE-engine/mini_imagenet"
     load_model = False
-    model_type = 'attention'           #options are regular, residual, attention
+    model_type = 'residualLarge'           #options are regular, residual, attention
     model_save = "model_saves/2_107500"
     # dataset = "ioxil/imagenetsubset"
     splits = ['train','validation','test']
-    batchsize = 1
+    batchsize = 16
     lr = 10e-4
     num_epochs = 5
 
     ds = get_dataloaders(dataset,False)
+    # ds = load_dataset('parquet',data_dir="mini_imagenet/data")
     ds.set_format('torch',columns=['image','label'])
     train_dataloader = DataLoader(ds['train'],batchsize,shuffle=True)
     val_dataloader = DataLoader(ds['validation'],batchsize,shuffle=True)
@@ -77,6 +79,12 @@ if __name__=="__main__":
         model = AttentionFFDNet()
     elif model_type=='regular':
         model = FFDNet()
+    elif model_type=='res2':
+        model = Res2_FFDNet()
+    elif model_type=='res3':
+        model = Res3_FFDNet()
+    elif model_type=='residualLarge':
+        model = ResidualLargeFFDNet()
     else:
         print("Unknown model type input, defaulting to regular FFDNet")
         model = FFDNet()
@@ -87,12 +95,15 @@ if __name__=="__main__":
         model.load_state_dict(torch.load(model_save,weights_only=True))
     optim = torch.optim.AdamW(model.parameters(),lr=lr)
     criterion = nn.MSELoss()
+    # criterion = lpips.LPIPS(net='vgg')
+    # criterion = criterion.to(device)
 
     count=0
     train_loss = []
     val_loss = []
     print(len(train_dataloader))
 
+    #Training and validation
     for epoch in range(num_epochs):
         training_loss = 0
         for output in iter(train_dataloader):
@@ -112,7 +123,7 @@ if __name__=="__main__":
             noise_sigma = torch.FloatTensor(np.array([noise_level for idx in range(image.shape[0])]))
             noise_sigma = Variable(noise_sigma)
             noise_sigma = noise_sigma.to(device)
-
+            print(noise_sigma.shape)
 
             denoised = model.forward(noisy_image,noise_sigma)
             denoised = denoised.to(device)
@@ -132,7 +143,7 @@ if __name__=="__main__":
             # print(noisy_image.shape)
             # print(denoised.shape)
 
-            if count%5000==0:
+            if count%500==0:
                 noisy_image = torch.permute(noisy_image[0]/255.0,(1,2,0)).cpu().detach().numpy()
                 denoised_image = torch.permute(denoised[0]/255.0,(1,2,0)).cpu().detach().numpy()
                 image = torch.permute(image[0]/255.0,(1,2,0)).cpu().detach().numpy()
@@ -155,7 +166,7 @@ if __name__=="__main__":
                 plt.axis('off')
                 plt.savefig(filename)
                 plt.close()
-                if count%5000:
+                if count%2000:
                     model_path=f"model_saves/{epoch}_{count}"
                     torch.save(model.state_dict(),model_path)
         with torch.no_grad():
@@ -193,6 +204,8 @@ if __name__=="__main__":
         model_path=f"model_saves/{epoch}_{count}"
         torch.save(model.state_dict(),model_path)
 
+
+
     plt.figure()
     plt.plot(train_loss)
     plt.plot(val_loss)
@@ -212,6 +225,7 @@ if __name__=="__main__":
     # plt.imshow(torch.permute(noisy_img,(1,2,0)))
     # plt.title("Noisy image")
     # plt.show()
+
 
 
 
