@@ -1,6 +1,6 @@
 import torch
 from prettytable import PrettyTable
-from model import FFDNet, ResidualFFDNet, AttentionFFDNet
+from model import FFDNet, ResidualFFDNet, AttentionFFDNet,ResidualLargeFFDNet
 
 def count_parameters(model):
     table = PrettyTable(["Modules", "Parameters"])
@@ -15,5 +15,5 @@ def count_parameters(model):
     print(f"Total Trainable Params: {total_params}")
     return total_params
     
-model = AttentionFFDNet()
+model = ResidualLargeFFDNet()
 count_parameters(model)
