@@ -4,7 +4,10 @@ import torch
 from my_utils import normalize_image, restore_image
 import skimage
 from skimage.util import random_noise
-
+from torchvision.io import read_image
+from torchvision.utils import save_image
+import glob
+import os
 
 class Noise_Generator():
     def __init__(self,noise_type='gaussian',noise_level=[0,50],num_bins=5,noise_distribution='uniform') -> None:
@@ -39,7 +42,7 @@ class Noise_Generator():
             for i, prob in enumerate(self.noise_distribution):
                 if roll<prob:
                     noise_level = torch.rand(1)*10+self.noise_bins[i]
-                    noisy_img = norm_img + torch.normal(0,float(noise_level),norm_img.shape)
+                    noisy_img = norm_img + torch.normal(0,float(25),norm_img.shape)
                     break
         if self.noise_type == 'poisson':
             noisy_img = random_noise(img/255,self.noise_type)
@@ -51,19 +54,21 @@ class Noise_Generator():
         return noisy_img,noise_level
     
 if __name__=="__main__":
-    noise_generator = Noise_Generator(noise_type='gaussian',noise_distribution="20-80")
-    img = skimage.io.imread("test_data/color.png")
-    print(img.shape)
-    img = torch.tensor(img)
-    print(img.shape)
-    noisy_img,_ = noise_generator.add_noise(img)
-    print(type(noisy_img))
-    plt.figure()
-    plt.subplot(121)
-    plt.imshow(img)
-    plt.subplot(122)
-    plt.imshow(noisy_img)
-    plt.show()
+    noise_generator = Noise_Generator(noise_type='gaussian')
+    files = glob.glob("test_data/CBSD68/original_png/*")
+    for file in files:
+        image_file = file[-8:]
+        path = "test_data/CBSD68/noisy75/"
+        image = read_image(file)
+        noisy_image,_ = noise_generator.add_noise(image)
+        plt.figure()
+        plt.imshow(torch.permute(noisy_image/255.0,(1,2,0)).cpu().detach().numpy())
+        plt.show()
+
+        # save_image(noisy_image/255.,os.path.join("test_data","CBSD68","noisy75",image_file))
+
+
+   
     # bins = np.ones(5)
     # for i in range(1000):
     #     _,j = noise_generator.add_noise(img)
