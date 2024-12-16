@@ -3,6 +3,7 @@ Project for implementing FFDNet for image denoising
 Training is done by running "main.py", parameters are controlled inside the script (Starting at line 33). The script needs access to the internet in order to get data (https://huggingface.co/datasets/GATE-engine/mini_imagenet).
 
 Parameters that can be selected:
+
     noise_type: can be gaussian or poisson
     noise_distribution: 80-20, 20-80 or uniform.                  80-20 is the recommended 80-20 split from One Size Fits All: https://arxiv.org/pdf/2005.09627
 
