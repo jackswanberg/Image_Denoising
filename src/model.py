@@ -234,7 +234,7 @@ class resNetBlock(nn.Module):
         )
 
     def forward(self, x):
-        return x + self.resBlock(x)
+        return self.activation(x + self.resBlock(x))
 class ResidualLargeFFDNet(nn.Module):
 
     def __init__(self):
@@ -336,8 +336,6 @@ class AttentionFFDNet(nn.Module):
     def forward(self, x, noise_sigma):
         h = int(x.shape[2]/2)
         w = int(x.shape[3]/2)
-        print(x.shape)
-        print(type(h),type(w))
         noise_map = noise_sigma.view(x.shape[0], 1, 1, 1).repeat(1, x.shape[1], x.shape[2] // 2, x.shape[3] // 2)
         noise_map = noise_map.to(device)
         x_up = my_utils.downsample(x.data) # 4 * C * H/2 * W/2
@@ -364,6 +362,7 @@ class AttentionFFDNet(nn.Module):
         # print(torch.min(torch.min(h_dncnn,3).values,2))
         # print(torch.max(torch.max(h_dncnn,3).values,2))
         # h_dncnn =               #Need different attention layer for this?
+
         y_pred = my_utils.upsample(h_dncnn+x_residual)
         # print(y_pred.shape)
         # print(torch.min(torch.min(y_pred,3).values,2))

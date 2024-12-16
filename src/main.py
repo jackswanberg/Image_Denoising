@@ -1,21 +1,14 @@
 import torch
-import torchvision
-import argparse
 import numpy as np
-import cv2
 import os
-import time
 import matplotlib.pyplot as plt
-import lpips
 
 import torch
 import torch.nn as nn
-import torch.nn.functional as F
 import torch.optim as optim
 from torch.autograd import Variable
 from torch.utils.data import DataLoader
 from datasets import load_dataset
-from PIL import Image
 
 from Noise_Generator import Noise_Generator
 from my_utils import PSNR, SSIM, normalize_image, restore_image
@@ -25,48 +18,39 @@ def get_dataloaders(dataset,splits):
     train_dataloader, val_dataloader, test_dataloader = None, None, None
     ds = load_dataset("GATE-engine/mini_imagenet")
     return ds
-    # for split in splits:
-    #     ds = load_dataset("GATE-engine/mini_imagenet",split=split)
-    #     ds.set_format('torch',columns=['image','label'])
-    #     if 'train' == split:
-    #         train_dataloader = DataLoader(ds['image'],1)
-    #     if 'validation' == split:
-    #         val_dataloader  = DataLoader(ds['image'],1)
-    #     if 'test' == split:
-    #         test_dataloader = DataLoader(ds['image'])
-    # return (train_dataloader, val_dataloader, test_dataloader)
-
 
 if __name__=="__main__":
-    torch.manual_seed(16)       #Set seed for reproducable training and comparisons
+    torch.manual_seed(16)       #Set seed for reproducable training
 
-    noise_type = 'gaussian' #Options are gaussian, or poisson
-    noise_level = [0,50]
-    noise_distribution = "80-20" # Distribution from One Size Fits All: https://arxiv.org/pdf/2005.09627
-    noise_generator = Noise_Generator(noise_type,noise_level,noise_distribution=noise_distribution)
+    dirname = os.path.dirname(__file__)
+    os.chdir(dirname)
+    os.chdir("..")
+    cwd = os.getcwd()
+
+    model_save_sie = os.path.join(cwd,"model_saves")
+    noise_level = [0,50] #Not customizable yet 
     dataset = "GATE-engine/mini_imagenet"
-    load_model = False
-    model_type = 'residualLarge'           #options are regular, residual, attention
-    model_save = "model_saves/2_107500"
-    # dataset = "ioxil/imagenetsubset"
-    splits = ['train','validation','test']
-    batchsize = 16
-    lr = 10e-4
-    num_epochs = 5
+    ####################################Controllable parameters #############################################################
+    noise_type = 'gaussian' #Options are gaussian, or poisson
+    noise_distribution = "80-20" # Options are "80-20", "20-80", uniform
+    
+    model_type = 'reslarge'           #options are regular, residual, attention
+    load_model = True               #Set to false if training from scratch
 
+    batchsize = 16
+    lr = 1e-4
+    num_epochs = 5
+    ##########################################################################################################################
+    model_save_path = os.path.join("model_saves","reslarge")
+    splits = ['train','validation','test']
+
+    noise_generator = Noise_Generator(noise_type,noise_level,noise_distribution=noise_distribution)
     ds = get_dataloaders(dataset,False)
     # ds = load_dataset('parquet',data_dir="mini_imagenet/data")
     ds.set_format('torch',columns=['image','label'])
     train_dataloader = DataLoader(ds['train'],batchsize,shuffle=True)
     val_dataloader = DataLoader(ds['validation'],batchsize,shuffle=True)
     test_dataloader = DataLoader(ds['test'],batchsize,shuffle=False)
-    # train_dataloader, val_dataloader, test_dataloader = get_dataloaders(dataset, splits)
-    # if train is not None:
-    #     train_dataloader = DataLoader(train,4)
-    # if val is not None:
-    #     val_dataloader = DataLoader(val,4)
-    # if test is not None:
-    #     test_dataloader = DataLoader(test,4)
 
     device = torch.device('cuda') if torch.cuda.is_available() else torch.device('cpu')
     device = torch.device('mps') if torch.mps.is_available() else device
@@ -83,7 +67,7 @@ if __name__=="__main__":
         model = Res2_FFDNet()
     elif model_type=='res3':
         model = Res3_FFDNet()
-    elif model_type=='residualLarge':
+    elif model_type=='reslarge':
         model = ResidualLargeFFDNet()
     else:
         print("Unknown model type input, defaulting to regular FFDNet")
@@ -92,11 +76,9 @@ if __name__=="__main__":
     print(f"Model type selected was: {model}")
     model.to(device)
     if load_model:
-        model.load_state_dict(torch.load(model_save,weights_only=True))
+        model.load_state_dict(torch.load(model_save_path,weights_only=True))
     optim = torch.optim.AdamW(model.parameters(),lr=lr)
     criterion = nn.MSELoss()
-    # criterion = lpips.LPIPS(net='vgg')
-    # criterion = criterion.to(device)
 
     count=0
     train_loss = []
@@ -123,7 +105,6 @@ if __name__=="__main__":
             noise_sigma = torch.FloatTensor(np.array([noise_level for idx in range(image.shape[0])]))
             noise_sigma = Variable(noise_sigma)
             noise_sigma = noise_sigma.to(device)
-            print(noise_sigma.shape)
 
             denoised = model.forward(noisy_image,noise_sigma)
             denoised = denoised.to(device)
@@ -225,7 +206,3 @@ if __name__=="__main__":
     # plt.imshow(torch.permute(noisy_img,(1,2,0)))
     # plt.title("Noisy image")
     # plt.show()
-
-
-
-

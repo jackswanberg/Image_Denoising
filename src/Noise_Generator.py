@@ -42,7 +42,7 @@ class Noise_Generator():
             for i, prob in enumerate(self.noise_distribution):
                 if roll<prob:
                     noise_level = torch.rand(1)*10+self.noise_bins[i]
-                    noisy_img = norm_img + torch.normal(0,float(25),norm_img.shape)
+                    noisy_img = norm_img + torch.normal(0,float(noise_level),norm_img.shape)
                     break
         if self.noise_type == 'poisson':
             noisy_img = random_noise(img/255,self.noise_type)

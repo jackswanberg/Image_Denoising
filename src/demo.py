@@ -18,18 +18,20 @@ from torch.utils.data import DataLoader
 from torchvision.io import read_image
 from datasets import load_dataset
 from PIL import Image
+from torch.utils.flop_counter import FlopCounterMode
 
 
 from Noise_Generator import Noise_Generator
 from my_utils import PSNR, SSIM, normalize_image, restore_image
 from model import FFDNet, ResidualFFDNet, AttentionFFDNet, Res2_FFDNet, Res3_FFDNet, ResidualLargeFFDNet
 
+
 if __name__=="__main__":
     # noise_type = 'gaussian' #Options are gaussian, or poisson
     # noise_level = [0,50]
     # noise_distribution = "80-20" # Distribution from One Size Fits All: https://arxiv.org/pdf/2005.09627
     # noise_generator = Noise_Generator(noise_type,noise_level,noise_distribution=noise_distribution)
-    tests = ['original_png','noisy15','noisy25','noisy50','noisy75','poisson']
+    
 
     dirname = os.path.dirname(__file__)
     os.chdir(dirname)
@@ -37,13 +39,21 @@ if __name__=="__main__":
     cwd = os.getcwd()
     model_save_path = os.path.join(cwd,"model_saves")
 
+    
+    
+    tests = ['original_png','noisy15','noisy25','noisy50','noisy75','poisson']
+    ######################### Can change parameters here ######################################
     load_model = True
-    model_type = 'regular'           #options are regular, residual, attention
-    model_save = os.path.join("model_saves",f"{model_type}_weights_80_20")
+    model_type = 'res2'           #options are regular, residual, attention, reslarge (resnet blocks), res2 and res3
+    test = 2                          #Options listed above, valid inputs are 0-5
+    noise_level=25                      #Parameter to set noise_map value for feeding into model, typically matched with noise level
+    visualization = False                #Set to false if just want to run through test data and get metrics
+    ####################################################################
+
+    # model_save_path = os.path.join("model_saves","residuals_12epochs")
+    model_save_path = os.path.join("model_saves",model_type)
     test_dir = os.path.join(cwd,"test_data","CBSD68")
     image_dir = os.path.join(cwd,"test_data","CBSD68","original_png")
-    test = 1
-    noise_level=15
     noisy_images = glob.glob(os.path.join(test_dir,tests[test],"*"))
     clean_images = glob.glob(os.path.join(image_dir,"*"))
 
@@ -73,7 +83,7 @@ if __name__=="__main__":
     model.to(device)
     print(os.listdir())
     if load_model:
-        model.load_state_dict(torch.load(model_save,weights_only=True))
+        model.load_state_dict(torch.load(model_save_path,weights_only=True))
     
     total_psnr = 0
     total_ssim = 0
@@ -94,22 +104,24 @@ if __name__=="__main__":
             noise_sigma = Variable(noise_sigma)
             noise_sigma = noise_sigma.to(device)
             denoised_img = model.forward(noisy_img,noise_sigma)
-            denoised_img = denoised_img/denoised_img.max()*255
+            denoised_img[denoised_img>255.] = 255.
+            denoised_img[denoised_img<0.0] = 0.0
 
-            plt.figure()
-            plt.subplot(131)
-            plt.title("Original Image")
-            plt.imshow(torch.permute(img[0]/255.0,(1,2,0)).cpu().detach().numpy())
-            plt.axis("off")
-            plt.subplot(132)
-            plt.title("Noisy Image")
-            plt.imshow(torch.permute(noisy_img[0]/255.0,(1,2,0)).cpu().detach().numpy())
-            plt.axis("off")
-            plt.subplot(133)
-            plt.title("Denoised Image")
-            plt.imshow(torch.permute(denoised_img[0]/255.0,(1,2,0)).cpu().detach().numpy())
-            plt.axis("off")
-            plt.show()
+            if visualization:
+                plt.figure()
+                plt.subplot(131)
+                plt.title("Original Image")
+                plt.imshow(torch.permute(img[0]/255.0,(1,2,0)).cpu().detach().numpy())
+                plt.axis("off")
+                plt.subplot(132)
+                plt.title("Noisy Image")
+                plt.imshow(torch.permute(noisy_img[0]/255.0,(1,2,0)).cpu().detach().numpy())
+                plt.axis("off")
+                plt.subplot(133)
+                plt.title("Denoised Image")
+                plt.imshow(torch.permute(denoised_img[0]/255.0,(1,2,0)).cpu().detach().numpy())
+                plt.axis("off")
+                plt.show()
 
             total_lpips += loss_fn_alex(img, denoised_img)
             noisy_img = torch.permute(noisy_img[0],(1,2,0)).cpu().detach().numpy()
@@ -123,11 +135,11 @@ if __name__=="__main__":
             img = img.astype(np.uint8)
             denoised_img = denoised_img.astype(np.uint8)
 
-            print(PSNR(img,denoised_img))
             total_psnr += PSNR(img,denoised_img)
             total_ssim += SSIM(img,denoised_img)
         
 n = len(noisy_images)
+print(f"Results for {model_type}, {tests[test]}")
 print(f"Average PSNR: {total_psnr/n}")
 print(f"Total SSIM: {total_ssim/n}")
 print(f"Total LPIPS: {total_lpips/n}")
