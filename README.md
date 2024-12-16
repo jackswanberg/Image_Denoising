@@ -4,7 +4,7 @@ Training is done by running "main.py", parameters are controlled inside the scri
 
 Parameters that can be selected:
     noise_type: can be gaussian or poisson
-    noise_distribution: 80-20, 20-80 or uniform                  80-20 is the recommended 80-20 split from One Size Fits All: https://arxiv.org/pdf/2005.09627
+    noise_distribution: 80-20, 20-80 or uniform.                  80-20 is the recommended 80-20 split from One Size Fits All: https://arxiv.org/pdf/2005.09627
 
     model_type: options are 'regular', 'residual', 'reslarge', 'attention', 'res2', and 'res3'. Reslarge utilizes resnetblocks with two convolutions per block, whereas residual has 1 convolution per residual block
     load_model: True/False if you would like to load a pretrained model or not. It is expected the weights are in a directory at the same level as "src", with weight files with the same name as the model_type (e.g. a 'residual' model will try to load weights located at 'model_saves/residual')
