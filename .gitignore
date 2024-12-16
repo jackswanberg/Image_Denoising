@@ -1,5 +1,12 @@
 env/
 reference/
 train_data/*
-test_data/*
-
+model_saves/*
+!model_saves/regular
+!model_saves/residual
+!model_saves/res2
+!model_saves/reslarge
+results/*
+!results/.placeholder
+mini_imagenet/*
+src/demo copy.py

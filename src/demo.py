@@ -44,7 +44,7 @@ if __name__=="__main__":
     tests = ['original_png','noisy15','noisy25','noisy50','noisy75','poisson']
     ######################### Can change parameters here ######################################
     load_model = True
-    model_type = 'res2'           #options are regular, residual, attention, reslarge (resnet blocks), res2 and res3
+    model_type = 'attention'           #options are regular, residual, attention, reslarge (resnet blocks), res2 and res3
     test = 2                          #Options listed above, valid inputs are 0-5
     noise_level=25                      #Parameter to set noise_map value for feeding into model, typically matched with noise level
     visualization = False                #Set to false if just want to run through test data and get metrics
